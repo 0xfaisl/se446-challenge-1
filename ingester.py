@@ -11,22 +11,16 @@
 
 import os, json, time, feedparser
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 INCOMING = "data/incoming"
 os.makedirs(INCOMING, exist_ok=True)
 
-# TODO: Add at least 4 RSS feed URLs. Here are some reliable ones to pick from:
-#   - "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
-#   - "https://feeds.bbci.co.uk/news/world/rss.xml"
-#   - "https://rss.cnn.com/rss/edition_world.rss"
-#   - "https://www.aljazeera.com/xml/rss/all.xml"
-#   - "https://feeds.reuters.com/reuters/worldNews"
-#   - "https://www.theguardian.com/world/rss"
 FEEDS = {
-    # "BBC":      "https://feeds.bbci.co.uk/news/world/rss.xml",
-    # "NYT":      "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-    # "CNN":      "https://rss.cnn.com/rss/edition_world.rss",
-    # "AlJazeera":"https://www.aljazeera.com/xml/rss/all.xml",
+    "BBC":       "https://feeds.bbci.co.uk/news/world/rss.xml",
+    "NYT":       "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    "CNN":       "https://rss.cnn.com/rss/edition_world.rss",
+    "AlJazeera": "https://www.aljazeera.com/xml/rss/all.xml",
 }
 
 
@@ -35,22 +29,22 @@ def pull_once(tick: int):
     rows = []
 
     for source, url in FEEDS.items():
-        # TODO: Wrap each feed in try/except so one dead feed doesn't crash everything
-        # Steps:
-        #   1. feed = feedparser.parse(url)
-        #   2. Loop over feed.entries
-        #   3. For each entry, build a dict with these 4 keys:
-        #        "source": source,                          (string — e.g. "BBC")
-        #        "title":  entry.title,                     (string — the headline)
-        #        "url":    entry.link,                      (string — article URL)
-        #        "ts":     <ISO timestamp string>           (string — see note below)
-        #   4. Append the dict to rows
-        #
-        # TIMESTAMP NOTE:
-        #   entry.published exists on most feeds but not all.
-        #   Safest approach: use datetime.now(timezone.utc).isoformat()
-        #   That way every record has a valid timestamp even if the feed omits it.
-        pass
+        try:
+            feed = feedparser.parse(url)
+            for entry in feed.entries:
+                raw_ts = entry.get("published", "")
+                try:
+                    ts = parsedate_to_datetime(raw_ts).isoformat()
+                except Exception:
+                    ts = datetime.now(timezone.utc).isoformat()
+                rows.append({
+                    "source": source,
+                    "title":  entry.title,
+                    "url":    entry.link,
+                    "ts":     ts,
+                })
+        except Exception as e:
+            print(f"[WARN] failed to fetch {source}: {e}")
 
     # Write JSONL file — one JSON object per line
     path = os.path.join(INCOMING, f"batch_{tick}.json")
